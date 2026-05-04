@@ -1,0 +1,13 @@
+def load_weights(net, filename="weights_final.npz"):
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"가중치 파일이 없습니다: {filename}")
+
+    data = np.load(filename)
+
+    net.W1 = data["W1"]
+    net.b1 = data["b1"]
+    net.W2 = data["W2"]
+    net.b2 = data["b2"]
+
+    print(f"[로드] 가중치 로드 완료: {filename}")
+    print(f"  W1: {net.W1.shape}, b1: {net.b1.shape}, W2: {net.W2.shape}, b2: {net.b2.shape}")
