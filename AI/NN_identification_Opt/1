@@ -1,0 +1,4 @@
+# 이 코드는 colab에서 실행하는 경우에만 사용합니다.
+# 구글 드라이브 마운트
+from google.colab import drive
+drive.mount('/content/drive')
