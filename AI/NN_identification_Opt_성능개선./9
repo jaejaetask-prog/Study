@@ -1,0 +1,126 @@
+def main():
+    # 로컬로 실행시 경로
+    # current_dir = os.path.dirname(os.path.abspath(__file__))
+    # data_root = os.path.join(current_dir, "mnist_raw")
+
+    # colab으로 실행시 경로
+    data_root = "/content/mnist_raw"
+
+    print(f"데이터 루트: {data_root}")
+
+    try:
+        # training(학습) 디렉토리 내 모든 파일(raw) 순회
+        X_train, Y_train, y_train_int = load_mnist_raw(data_root, "training")
+        # testing(평가) 디렉토리 내 모든 파일(raw) 순회
+        X_test, Y_test, y_test_int = load_mnist_raw(data_root, "testing")
+    except ValueError as e:
+        print(f"\n[에러] {e}")
+        return
+
+    input_size = 784
+    hidden_size = 128
+    output_size = 10
+
+    # 개선 방법 3: Momentum 계수 추가
+    momentum = 0.9
+
+    # 신경망 구성
+    net = SimpleNeuralNet(input_size, hidden_size, output_size, momentum=momentum)
+
+    # 기존 코드의 random initialization 구조 유지
+    # 단, 초기 가중치가 너무 크면 ReLU/softmax에서도 학습이 불안정해질 수 있으므로
+    # 기존과 동일하게 작은 값으로 조정
+    net.W1 *= 0.01
+    net.W2 *= 0.01
+
+    # 학습 설정
+    epochs = 30
+
+    # 기존 코드는 batch_size = 1이었다.
+    # 미니배치 학습을 사용하면 gradient가 더 안정적이고 연산도 효율적이다.
+    # 단, 보고서에서 핵심 개선 방법은 Softmax+CE, ReLU, Momentum 3개로 설명하면 된다.
+    batch_size = 64
+
+    # softmax + cross-entropy는 기존 MSE + sigmoid보다 gradient가 잘 전달되므로
+    # 0.01보다 조금 큰 학습률도 사용 가능하다.
+    learning_rate = 0.05
+
+    # batch_size가 64이면 한 epoch당 step 수가 약 938개이므로
+    # 100 step마다 출력하는 것이 적당하다.
+    report_interval = 100
+
+    print(f"\n학습 시작 (총 데이터: {X_train.shape[1]}개, 배치 사이즈: {batch_size})")
+    print(f"개선 적용: ReLU + Softmax/Cross-Entropy + Momentum({momentum})")
+
+    for epoch in range(epochs):
+        print(f"\n=== Epoch {epoch + 1} 시작 ===")
+
+        iterator = iterate_minibatches(
+            X_train,
+            Y_train,
+            batch_size=batch_size,
+            shuffle=True,
+            seed=epoch
+        )
+
+        running_loss = 0.0
+        running_correct = 0
+        running_count = 0
+
+        step_count = 0
+
+        for xb, yb in iterator:
+            step_count += 1
+
+            # 순전파
+            net.forward(xb)
+
+            # 역전파 + momentum 업데이트
+            loss = net.backward(xb, yb, learning_rate)
+
+            # 현재 배치의 샘플 수
+            current_batch_size = xb.shape[1]
+
+            # loss는 배치 평균이므로, 전체 평균을 정확히 계산하기 위해
+            # 샘플 수를 곱해서 누적한다.
+            running_loss += loss * current_batch_size
+
+            # 미니배치 전체에 대해 예측값과 정답 비교
+            pred = np.argmax(net.a2, axis=0)
+            target = np.argmax(yb, axis=0)
+
+            running_correct += np.sum(pred == target)
+            running_count += current_batch_size
+
+            if step_count % report_interval == 0:
+                avg_loss = running_loss / running_count
+                avg_acc = running_correct / running_count
+
+                print(f"[Epoch {epoch + 1}] Step {step_count} | "
+                      f"최근 {running_count}개 평균 Loss: {avg_loss:.4f} | "
+                      f"Acc: {avg_acc:.4f}")
+
+                running_loss = 0.0
+                running_correct = 0
+                running_count = 0
+
+        print(f"--- Epoch {epoch + 1} 검증 중... ---")
+        test_acc = accuracy_from_net(net, X_test, y_test_int)
+        print(f"Epoch {epoch + 1} 완료 | 최종 Test Acc: {test_acc:.4f}")
+
+    # 로컬 실행시 경로
+    # save_path = "weights_final.npz"
+    # colab 실행시 경로
+    save_path = "/content/drive/MyDrive/weights_final.npz"
+
+    save_weights(net, save_path)
+
+    rng = np.random.default_rng(0)
+    idx = rng.choice(X_test.shape[1], size=10, replace=False)
+
+    out = net.forward(X_test[:, idx])
+    pred = np.argmax(out, axis=0)
+
+    print("선택 인덱스:", idx)
+    print("예측:", pred)
+    print("정답:", y_test_int[idx])
