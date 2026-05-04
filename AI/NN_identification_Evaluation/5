@@ -1,0 +1,65 @@
+# 데이터셋 읽어오는 함수
+def load_mnist_raw(root_dir, split="training"):
+    split_dir = os.path.join(root_dir, split)
+    X_list, y_list = [], [] # X: 이미지(784차원), Y: 정답(label)
+
+    print(f"[{split}] 데이터 탐색 시작: {split_dir}")
+
+    # 디렉토리가 없는 경우
+    if not os.path.exists(split_dir):
+        print(f"[오류] 폴더가 없습니다: {split_dir}")
+        return np.array([]), np.array([]), np.array([])
+
+    total_loaded = 0  # 로드된 개수 카운트
+
+    # 클래스별 디렉토리 순회
+    for label in range(10):
+        class_dir = os.path.join(split_dir, str(label))
+
+        # 디렉토리가 없으면 건너뜀
+        if not os.path.isdir(class_dir):
+            continue
+
+        files = os.listdir(class_dir)
+        for fname in files:
+            if not fname.endswith(".raw"):
+                continue
+
+            fpath = os.path.join(class_dir, fname)
+            try:
+                # 파일 전체를 읽음
+                with open(fpath, "rb") as f:
+                    data = np.frombuffer(f.read(), dtype=np.uint8)
+
+                # 정해진 포맷(28x28)이 아닌 경우 건너뜀
+                if data.size != 784:
+                    continue
+
+                # 각 화솟값(0~255)을 0~1로 정규화
+                arr = data.astype(np.float32) / 255.0
+                X_list.append(arr)
+                y_list.append(label)
+
+                total_loaded += 1
+
+                # 1000개 단위로 로드 현황 알림
+                if total_loaded % 1000 == 0:
+                    print(f" -> {total_loaded}개 로드 완료...")
+
+            except Exception:
+                continue
+
+    # raw 데이터가 없는 경우
+    if len(X_list) == 0:
+        raise ValueError(f"'{split}' 폴더에서 .raw 데이터를 찾을 수 없습니다.")
+
+    print(f"[{split}] 총 {total_loaded}개 로드 완료!")
+
+    X = np.stack(X_list, axis=0)    # 입력 샘플
+    y_int = np.array(y_list, dtype=np.int64)    # 정답 저장
+    Y = np.eye(10, dtype=np.float32)[y_int] # 정수 label을 one-hot 벡터로 변환
+
+    # ex)
+    # y_int = [1, 2, 3] -> Y = [[0,1,0,0,0,0,0,0,0,0], [0,0,1,0,0,0,0,0,0,0], [0,0,0,1,0,0,0,0,0,0]]
+
+    return X.T, Y.T, y_int
