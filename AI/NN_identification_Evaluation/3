@@ -1,0 +1,34 @@
+# 이 코드는 colab에서 실행하는 경우에만 사용합니다.
+def maybe_make_mnist_raw(out_root="/content/mnist_raw"):
+    # 이미 있으면 스킵
+    train_dir = os.path.join(out_root, "training", "0")
+    test_dir  = os.path.join(out_root, "testing", "0")
+    if os.path.isdir(train_dir) and os.path.isdir(test_dir) and len(os.listdir(train_dir)) > 0:
+        print("[OK] mnist_raw already exists:", out_root)
+        return out_root
+
+    print("[INFO] Creating mnist_raw at:", out_root)
+    os.makedirs(out_root, exist_ok=True)
+
+    # TensorFlow로 다운로드만 사용
+    from tensorflow.keras.datasets import mnist
+    (x_train, y_train), (x_test, y_test) = mnist.load_data()  # (N,28,28), uint8
+
+    def write_split(split_name, X, y):
+        split_root = os.path.join(out_root, split_name)
+        for label in range(10):
+            os.makedirs(os.path.join(split_root, str(label)), exist_ok=True)
+
+        # 파일 저장
+        for i in range(X.shape[0]):
+            label = int(y[i])
+            fpath = os.path.join(split_root, str(label), f"{i:05d}.raw")
+            X[i].astype(np.uint8).ravel().tofile(fpath)
+
+    write_split("training", x_train, y_train)
+    write_split("testing",  x_test,  y_test)
+
+    print("[DONE] mnist_raw created.")
+    return out_root
+
+maybe_make_mnist_raw("/content/mnist_raw")
