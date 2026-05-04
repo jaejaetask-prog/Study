@@ -1,0 +1,3 @@
+def save_weights(net, filename="weights.npz"):
+    print(f"\n[저장] 가중치를 '{filename}'에 저장합니다.")
+    np.savez(filename, W1=net.W1, b1=net.b1, W2=net.W2, b2=net.b2) #  W1, b1, W2, b2 저장
