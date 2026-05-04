@@ -1,0 +1,90 @@
+class SimpleNeuralNet:
+    def __init__(self, input_size, hidden_size, output_size, momentum=0.9):
+        # 기존 코드와 동일하게 random initialization 사용
+        # 단, momentum을 위해 velocity 변수를 추가함
+        self.W1 = np.random.randn(hidden_size, input_size)
+        self.b1 = np.zeros((hidden_size, 1))
+        self.W2 = np.random.randn(output_size, hidden_size)
+        self.b2 = np.zeros((output_size, 1))
+
+        # Momentum 계수
+        self.momentum = momentum
+
+        # Momentum에서 사용하는 속도 벡터 v
+        # 처음에는 이전 이동 방향이 없으므로 모두 0으로 초기화
+        self.vW1 = np.zeros_like(self.W1)
+        self.vb1 = np.zeros_like(self.b1)
+        self.vW2 = np.zeros_like(self.W2)
+        self.vb2 = np.zeros_like(self.b2)
+
+    # 개선 방법 1: 은닉층 활성함수를 sigmoid에서 ReLU로 변경
+    def relu(self, z):
+        return np.maximum(0, z)
+
+    def relu_derivative(self, z):
+        return (z > 0).astype(np.float32)
+
+    # 개선 방법 2: 출력층 활성함수를 sigmoid에서 softmax로 변경
+    def softmax(self, z):
+        # overflow 방지를 위해 각 column마다 최댓값을 빼줌
+        # softmax(z)와 softmax(z - max(z))는 수학적으로 같은 확률분포를 만든다.
+        z_shift = z - np.max(z, axis=0, keepdims=True)
+        exp_z = np.exp(z_shift)
+        return exp_z / np.sum(exp_z, axis=0, keepdims=True)
+
+    def forward(self, x):
+        # 1층: 입력층 → 은닉층
+        self.z1 = np.dot(self.W1, x) + self.b1
+
+        # 기존: sigmoid
+        # 개선: ReLU
+        self.a1 = self.relu(self.z1)
+
+        # 2층: 은닉층 → 출력층
+        self.z2 = np.dot(self.W2, self.a1) + self.b2
+
+        # 기존: sigmoid
+        # 개선: softmax
+        self.a2 = self.softmax(self.z2)
+
+        return self.a2
+
+    def backward(self, x, y, learning_rate):
+        m = x.shape[1]
+        eps = 1e-12
+
+        # 개선 방법 2: MSE 대신 Cross-Entropy 사용
+        # L = -1/m * sum(y * log(a2))
+        loss = -np.sum(y * np.log(self.a2 + eps)) / m
+
+        # softmax + cross-entropy를 함께 쓰면
+        # 출력층 오차는 dz2 = a2 - y 로 단순화된다.
+        dz2 = self.a2 - y
+
+        # 출력층 gradient
+        dW2 = (1 / m) * np.dot(dz2, self.a1.T)
+        db2 = (1 / m) * np.sum(dz2, axis=1, keepdims=True)
+
+        # 은닉층 gradient
+        # 기존: sigmoid_derivative(self.a1)
+        # 개선: relu_derivative(self.z1)
+        dz1 = np.dot(self.W2.T, dz2) * self.relu_derivative(self.z1)
+
+        # 입력층 → 은닉층 gradient
+        dW1 = (1 / m) * np.dot(dz1, x.T)
+        db1 = (1 / m) * np.sum(dz1, axis=1, keepdims=True)
+
+        # 개선 방법 3: Momentum 적용
+        # v = alpha * v - learning_rate * gradient
+        # theta = theta + v
+        self.vW1 = self.momentum * self.vW1 - learning_rate * dW1
+        self.vb1 = self.momentum * self.vb1 - learning_rate * db1
+        self.vW2 = self.momentum * self.vW2 - learning_rate * dW2
+        self.vb2 = self.momentum * self.vb2 - learning_rate * db2
+
+        self.W1 += self.vW1
+        self.b1 += self.vb1
+        self.W2 += self.vW2
+        self.b2 += self.vb2
+
+        return loss
